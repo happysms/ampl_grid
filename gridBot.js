@@ -1,5 +1,48 @@
 let config = require('./config');
 let ccxt = require('ccxt');
+const maria = require("mysql");
+
+
+const conn = maria.createConnection({
+    host: config.HOST,
+    port: config.PORT,
+    user: config.USER,
+    password: config.PASSWORD,
+    database: config.DATABASE
+});
+
+conn.connect(function(err) {
+    if (err) throw err;
+    console.log("Connected!");
+    conn.query(`CREATE TABLE IF NOT EXISTS grid_record (
+                datetime TIMESTAMP PRIMARY KEY,
+                price DOUBLE,
+                size DOUBLE,
+                usd DOUBLE,
+                side VARCHAR(255)
+            )`,
+        function (err, result) {
+            if (err) throw err;
+            console.log("Database created");
+        }
+    )
+});
+
+let insertRecord = async (price, size, usd, side) => {
+    let sql = `INSERT INTO grid_record (price, size, usd, side) VALUES (${price}, ${size}, ${usd}, ${side})`;
+    await conn.query(sql, function (err, result) {
+        if (err) {
+            conn.connect();
+            let sql = `INSERT INTO grid_record (price, size, usd, side) VALUES (${price}, ${size}, ${usd}, ${side})`;
+            conn.query(sql, function (err, result) {
+                if (err) {
+                    process.exit(0);
+                }
+            });
+        }
+        console.log(`${Date.now()} record inserted`);
+    });
+}
 
 
 let getGridList = (lowerPrice, upperPrice, middlePrice, gridNum) => {
@@ -35,7 +78,6 @@ let getOrderSize = (price) => {
     }
     return gridSize;
 }
-
 
 
 (async function () {
@@ -105,8 +147,9 @@ let getOrderSize = (price) => {
                 let idx = gridPriceList.indexOf(orderInfo['price'], 0);
                 idx = idx + 1;
                 let newSellPrice = gridPriceList[idx];
-
                 let size = getOrderSize(newSellPrice);
+
+                await insertRecord(orderInfo['price'], gridList[idx][0], gridList[idx][1], "buy");
                 console.log(`creating new limit sell order at ${newSellPrice}`);
                 let newSellOrder = await exchange.createLimitSellOrder(config.SYMBOL, size, newSellPrice);
                 sellOrders.push(newSellOrder);
@@ -132,6 +175,9 @@ let getOrderSize = (price) => {
                 idx = idx - 1;
                 let newBuyPrice = gridPriceList[idx];
                 let size = getOrderSize(newBuyPrice);
+
+                await insertRecord(orderInfo['price'], gridList[idx][0], gridList[idx][1], "sell");
+
                 console.log(`creating new limit buy order at ${newBuyPrice}`);
                 let newBuyOrder = await exchange.createLimitBuyOrder(config.SYMBOL, size, newBuyPrice);
                 buyOrders.push(newBuyOrder);

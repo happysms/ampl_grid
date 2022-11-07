@@ -11,5 +11,10 @@ module.exports = {
     LOWER_PRICE: 0.5,
     UPPER_PRICE: 2,
     MIDDLE_PRICE: 1.1,
-    GRID_NUM: 100
+    GRID_NUM: 100,
+    HOST: '',
+    PORT: 3306,
+    USER: "",
+    PASSWORD: "",
+    DATABASE: ""
 };
