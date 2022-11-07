@@ -49,16 +49,20 @@ let getOrderSize = (price) => {
 
     // let initialBuyOrder = exchange.createMarketBuyOrder(config.SYMBOL, config.POSITION_SIZE * config.NUM_SELL_GRID_LINES);
     let gridList = getGridList(config.LOWER_PRICE, config.UPPER_PRICE, config.MIDDLE_PRICE, config.GRID_NUM);
+    let gridPriceList = [];
 
     let minDifference = 1e9;
     let nearPrice = 0;
-    for (const [gridPrice, size] of gridList) {
+
+    for (let [gridPrice, size] of gridList) {
         let difference = Math.abs(gridPrice - ticker['bid']);
         if (minDifference > difference) {
             minDifference = difference;
             nearPrice = gridPrice
         }
+        gridPriceList.push(gridPrice);
     }
+    gridPriceList.sort();
 
     for (const [gridPrice, size] of gridList) {
         if (nearPrice === gridPrice) {
@@ -96,11 +100,15 @@ let getOrderSize = (price) => {
 
             if (orderInfo['status'] === config.CLOSED_ORDER_STATUS) {
                 closedOrderIds.push(orderInfo['id']);
+
                 console.log(`buy order executed at ${orderInfo['price']}`);
-                let newSellPrice = parseFloat(orderInfo['price'] + config.GRID_SIZE);
+                let idx = gridPriceList.indexOf(orderInfo['price'], 0);
+                idx = idx + 1;
+                let newSellPrice = gridPriceList[idx];
+
                 let size = getOrderSize(newSellPrice);
                 console.log(`creating new limit sell order at ${newSellPrice}`);
-                let newSellOrder = await exchange.createLimitBuyOrder(config.SYMBOL, size, newSellPrice);
+                let newSellOrder = await exchange.createLimitSellOrder(config.SYMBOL, size, newSellPrice);
                 sellOrders.push(newSellOrder);
             }
 
@@ -120,13 +128,16 @@ let getOrderSize = (price) => {
             if (orderInfo['status'] === config.CLOSED_ORDER_STATUS) {
                 closedOrderIds.push(orderInfo['id']);
                 console.log(`sell order executed at ${orderInfo['price']}`);
-                let newBuyPrice = parseFloat(orderInfo['price']) - config.GRID_SIZE;
+                let idx = gridPriceList.indexOf(orderInfo['price'], 0);
+                idx = idx - 1;
+                let newBuyPrice = gridPriceList[idx];
                 let size = getOrderSize(newBuyPrice);
                 console.log(`creating new limit buy order at ${newBuyPrice}`);
-                let newBuyOrder = await exchange.createLimitSellOrder(config.SYMBOL, size, newBuyPrice);
+                let newBuyOrder = await exchange.createLimitBuyOrder(config.SYMBOL, size, newBuyPrice);
                 buyOrders.push(newBuyOrder);
             }
-            await new Promise(resolve => setTimeout(resolve, config.CHECK_ORDERS_FREQUENCY));
+            let temp = await new Promise(resolve => setTimeout(resolve, config.CHECK_ORDERS_FREQUENCY));
+            console.log(temp);
         }
 
         closedOrderIds.forEach(closedOrderId => {
